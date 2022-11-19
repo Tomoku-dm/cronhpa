@@ -40,7 +40,7 @@ spec:
 mkdir cronhpa && cd cronhpa
 go  mod init cronhpa
 kubebuilder init --domain tomoku.com 
-
+kubebuilder create api --group cronhpa --version v1 --kind CronHPA
 
 
 # Link

@@ -1,0 +1,20 @@
+# permissions for end users to view cronhpas.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cronhpa-viewer-role
+rules:
+- apiGroups:
+  - cronhpa.tomoku.com
+  resources:
+  - cronhpas
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - cronhpa.tomoku.com
+  resources:
+  - cronhpas/status
+  verbs:
+  - get

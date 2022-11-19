@@ -1,0 +1,24 @@
+# permissions for end users to edit cronhpas.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cronhpa-editor-role
+rules:
+- apiGroups:
+  - cronhpa.tomoku.com
+  resources:
+  - cronhpas
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - cronhpa.tomoku.com
+  resources:
+  - cronhpas/status
+  verbs:
+  - get

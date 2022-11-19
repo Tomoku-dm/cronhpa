@@ -1,0 +1,6 @@
+apiVersion: cronhpa.tomoku.com/v1
+kind: CronHPA
+metadata:
+  name: cronhpa-sample
+spec:
+  # TODO(user): Add fields here
