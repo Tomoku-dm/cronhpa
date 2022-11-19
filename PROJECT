@@ -1,0 +1,6 @@
+domain: tomoku.com
+layout:
+- go.kubebuilder.io/v3
+projectName: cronhpa
+repo: cronhpa
+version: "3"
