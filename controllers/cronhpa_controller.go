@@ -18,19 +18,22 @@ package controllers
 
 import (
 	"context"
+	cronhpav1 "cronhpa/api/v1"
+	"time"
 
-	"k8s.io/apimachinery/pkg/runtime"
+	autoscalingv2beta2 "k8s.io/api/autoscaling/v2beta2"
+
+	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-
-	cronhpav1 "cronhpa/api/v1"
 )
 
 // CronHPAReconciler reconciles a CronHPA object
 type CronHPAReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Recorder record.EventRecorder
 }
 
 //+kubebuilder:rbac:groups=cronhpa.tomoku.com,resources=cronhpas,verbs=get;list;watch;create;update;patch;delete
@@ -47,16 +50,35 @@ type CronHPAReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.12.2/pkg/reconcile
 func (r *CronHPAReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
+	logger := log.FromContext(ctx)
 
-	// TODO(user): your logic here
+	now := time.Now()
+
+	// Fetch the CronHorizontalPodAutoscaler instance.
+	logger.Info("Fetch CronHPA")
+	cronhpa := &CronHPA{}
+	err := r.Get(ctx, req.NamespacedName, cronhpa.ToCompatible())
+	if err != nil {
+		if errors.IsNotFound(err) {
+			return ctrl.Result{}, nil
+		}
+		return ctrl.Result{}, err
+	}
+
+	// Fetch the corresponded HPA instance.
+	logger.Info("Create or update HPA")
+	if err := cronhpa.CreateHPA(ctx, now, r); err != nil {
+		return ctrl.Result{}, err
+	}
 
 	return ctrl.Result{}, nil
+
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *CronHPAReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&cronhpav1.CronHPA{}).
+		Owns(&autoscalingv2beta2.HorizontalPodAutoscaler{}).
 		Complete(r)
 }

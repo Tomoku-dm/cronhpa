@@ -90,8 +90,8 @@ func main() {
 	}
 
 	if err = (&controllers.CronHPAReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:   mgr.GetClient(),
+		Recorder: mgr.GetEventRecorderFor("cron-hpa-controller"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CronHPA")
 		os.Exit(1)

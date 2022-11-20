@@ -25,10 +25,25 @@ import (
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
+// TemplateMetadata is a metadata type only for labels and annotations.
+type TemplateMetadata struct {
+	// Map of string keys and values that can be used to organize and categorize
+	// (scope and select) objects. May match selectors of replication controllers
+	// and services.
+	// More info: http://kubernetes.io/docs/user-guide/labels
+	// +optional
+	Labels map[string]string `json:"labels,omitempty"`
+	// Annotations is an unstructured key value map stored with a resource that may be
+	// set by external tools to store and retrieve arbitrary metadata. They are not
+	// queryable and should be preserved when modifying objects.
+	// More info: http://kubernetes.io/docs/user-guide/annotations
+	// +optional
+	Annotations map[string]string `json:"annotations,omitempty"`
+}
 
 type HPATemplate struct {
-	//Metadata *TemplateMetadata                              `json:"metadata,omitempty"`
-	Spec autoscalingv2beta2.HorizontalPodAutoscalerSpec `json:"spec"`
+	Metadata *TemplateMetadata                              `json:"metadata,omitempty"`
+	Spec     autoscalingv2beta2.HorizontalPodAutoscalerSpec `json:"spec"`
 }
 
 type Cron struct {
@@ -50,8 +65,8 @@ type CronHPASpec struct {
 
 // CronHPAStatus defines the observed state of CronHPA
 type CronHPAStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// LastCronTimestamp is the time of last cron job.
+	LastCronTimestamp *metav1.Time `json:"lastCronTimestamp,omitempty"`
 }
 
 //+kubebuilder:object:root=true
