@@ -17,19 +17,35 @@ limitations under the License.
 package v1
 
 import (
+	"fmt"
+
+	autoscalingv2beta2 "k8s.io/api/autoscaling/v2beta2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
+type HPATemplate struct {
+	//Metadata *TemplateMetadata                              `json:"metadata,omitempty"`
+	Spec autoscalingv2beta2.HorizontalPodAutoscalerSpec `json:"spec"`
+}
+
+type Cron struct {
+	Name        string `json:"name"`
+	Schedule    string `json:"schedule"`
+	Timezone    string `json:"timezone"`
+	MinReplicas *int32 `json:"minReplicas,omitempty"`
+	MaxReplicas *int32 `json:"maxReplicas,omitempty"`
+}
+
 // CronHPASpec defines the desired state of CronHPA
 type CronHPASpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Foo is an example field of CronHPA. Edit cronhpa_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	Template HPATemplate `json:"template"`
+	Cron     []Cron      `json:"cron"`
 }
 
 // CronHPAStatus defines the observed state of CronHPA
@@ -61,4 +77,9 @@ type CronHPAList struct {
 
 func init() {
 	SchemeBuilder.Register(&CronHPA{}, &CronHPAList{})
+}
+
+func (h *CronHPA) String() string {
+	fmt.Printf("%+v", h.Spec.Cron)
+	return ("true")
 }

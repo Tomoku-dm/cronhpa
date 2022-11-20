@@ -9,30 +9,35 @@ metadata:
   name: cronhpa-test1
   namespace: default
 spec:
-  behavior:
-    scaleDown:
-      stabilizationWindowSeconds: 1800
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: test1
-  minReplicas: 10
-  maxReplicas: 20
+  template:
+    spec:
+      behavior:
+        scaleDown:
+          stabilizationWindowSeconds: 1800
+      scaleTargetRef:
+        apiVersion: apps/v1
+        kind: Deployment
+        name: test1
+      minReplicas: 10
+      maxReplicas: 20
+      metrics:
+      - type: Resource
+        resource:
+          name: cpu
+          target:
+            type: Utilization
+            averageUtilization: 60
   cron:
-    - schdedul: 0 7 0 0 1-5
-      timezone: ZH 
-      minReplicas : 10
-      maxReplicas : 20
-    - schdedul: 0 19 0 0 1-5
-      timezone: ZH
-      minReplicas : 5
-      maxReplicas : 20
-  - type: Resource
-    resource:
-      name: cpu
-      target:
-        type: Utilization
-        averageUtilization: 60
+  - name: "daytime"
+    schdedul: "0 7 0 0 1-5"
+    timezone: "Asia/China"
+    minReplicas : 10
+    maxReplicas : 20
+  - name: "nighttime"
+    timezone: "Asia/China"
+    "schdedul: "0 19 0 0 1-5"
+    minReplicas : 5
+    maxReplicas : 20
 ```
 
 # Step
@@ -45,4 +50,5 @@ kubebuilder create api --group cronhpa --version v1 --kind CronHPA
 
 # Link
 https://github.com/tkestack/cron-hpa
-
+https://sqbu-github.cisco.com/WebexPlatform/aws-iam-controller/commit/862fb638b57b4bacb6831ab669291e3c224d7711
+https://github.com/dtaniwaki/cron-hpa
