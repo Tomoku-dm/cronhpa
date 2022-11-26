@@ -39,6 +39,8 @@ type CronHPAReconciler struct {
 //+kubebuilder:rbac:groups=cronhpa.tomoku.com,resources=cronhpas,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=cronhpa.tomoku.com,resources=cronhpas/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=cronhpa.tomoku.com,resources=cronhpas/finalizers,verbs=update
+//+kubebuilder:rbac:groups=autoscaling,resources=horizontalpodautoscalers,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.

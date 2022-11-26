@@ -69,8 +69,9 @@ type CronHPAStatus struct {
 	LastCronTimestamp *metav1.Time `json:"lastCronTimestamp,omitempty"`
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:resource:shortName=cronhpa
 
 // CronHPA is the Schema for the cronhpas API
 type CronHPA struct {

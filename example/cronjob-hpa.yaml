@@ -1,0 +1,97 @@
+{{- if .Values.hpa.cronjob.enabled -}}
+{{- $monringHourUTC := sub .Values.hpa.cronjob.morning .Values.hpa.cronjob.tzoffset -}}
+{{- $nightHourUTC := sub .Values.hpa.cronjob.night .Values.hpa.cronjob.tzoffset -}}
+{{- if lt $monringHourUTC 0 }}
+  {{ $monringHourUTC = (add $monringHourUTC 24) }}
+{{- else if gt $monringHourUTC 24 }}
+  {{ $monringHourUTC = (sub $monringHourUTC 24) }}
+{{- end }}
+{{- if lt $nightHourUTC 0 }}
+  {{ $nightHourUTC = (add $nightHourUTC 24) }}
+{{- else if gt $nightHourUTC 24 }}
+  {{ $nightHourUTC = (sub $nightHourUTC 24) }}
+{{- end }}
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: '{{ template "appapi.fullname" . }}-hpa-morningup'
+  namespace: {{ .Values.global.namespace.name }}
+  labels:
+{{ include "appapi.labels" . | indent 4 }}
+  annotations:
+{{ include "appapi.annotations" . | indent 4 }}
+spec:
+  schedule: "0 {{ $monringHourUTC }} * * *"
+  successfulJobsHistoryLimit: 0 # Remove after successful completion
+  failedJobsHistoryLimit: 1 # Retain failed so that we see it
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+{{ include "appapi.labels" . | indent 12 }}
+            sidecar.istio.io/inject: "false"
+        spec:
+          serviceAccountName: '{{ template "appapi.fullname" . }}-hpa'
+          containers:
+          - name: '{{ template "appapi.fullname" . }}-hpa-morningup'
+            {{- $p := dict "docker" .Values.image.meta "image" .Values.image.cronhpa -}}
+            {{- include "appapi.image" $p | nindent 12 }}
+            resources:
+              requests:
+                cpu: 100m
+                memory: 128Mi
+              limits:
+                cpu: 200m
+                memory: 256Mi
+            command: ["/bin/sh","-c"]
+            args:
+              {{- if .Values.global.canary.enabled }}
+              - kubectl patch hpa {{ template "appapi.fullname" . }} --patch '{"spec":{"minReplicas":{{ .Values.hpa.minReplicas }}}}' ;
+                kubectl patch hpa {{ template "appapi.fullname" . }}-primary --patch '{"spec":{"minReplicas":{{ .Values.hpa.minReplicas }}}}'
+              {{- else }}
+              - kubectl patch hpa {{ template "appapi.fullname" . }} --patch '{"spec":{"minReplicas":{{ .Values.hpa.minReplicas }}}}'
+              {{- end }}
+          restartPolicy: OnFailure
+---
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: '{{ template "appapi.fullname" . }}-hpa-nightdown'
+  namespace: {{ .Values.global.namespace.name }}
+spec:
+  schedule: "0 {{ $nightHourUTC }} * * *"
+  successfulJobsHistoryLimit: {{.Values.hpa.cronjob.keep_successful}} # Remove after successful completion
+  failedJobsHistoryLimit: {{.Values.hpa.cronjob.keep_failures}} # Retain failed so that we see it
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+{{ include "appapi.labels" . | indent 12 }}
+            sidecar.istio.io/inject: "false"
+        spec:
+          serviceAccountName: '{{ template "appapi.fullname" . }}-hpa'
+          containers:
+          - name: '{{ template "appapi.fullname" . }}-hpa-nigthdown'
+            {{- $p := dict "docker" .Values.image.meta "image" .Values.image.cronhpa -}}
+            {{- include "appapi.image" $p | nindent 12 }}
+            resources:
+              requests:
+                cpu: 100m
+                memory: 128Mi
+              limits:
+                cpu: 200m
+                memory: 256Mi
+            command: ["/bin/sh","-c"]
+            args:
+              {{- if .Values.global.canary.enabled }}
+              - kubectl patch hpa {{ template "appapi.fullname" . }} --patch '{"spec":{"minReplicas":{{ .Values.hpa.cronjob.nightMinReplicas }}}}' ;
+                kubectl patch hpa {{ template "appapi.fullname" . }}-primary --patch '{"spec":{"minReplicas":{{ .Values.hpa.cronjob.nightMinReplicas }}}}'
+              {{- else }}
+              - kubectl patch hpa {{ template "appapi.fullname" . }} --patch '{"spec":{"minReplicas":{{ .Values.hpa.cronjob.nightMinReplicas }}}}'
+              {{- end }}
+          restartPolicy: OnFailure
+{{- end }}

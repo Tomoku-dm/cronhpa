@@ -48,6 +48,11 @@ kubebuilder init --domain tomoku.com
 kubebuilder create api --group cronhpa --version v1 --kind CronHPA
 
 
+# Deployment
+make
+make docker-build docker-push IMG=registry-qa.webex.com/meeting-common/cronhpa-operator:v0.1
+make deploy IMG=registry-qa.webex.com/meeting-common/cronhpa-operator:v0.1
+
 # Link
 https://github.com/tkestack/cron-hpa
 https://sqbu-github.cisco.com/WebexPlatform/aws-iam-controller/commit/862fb638b57b4bacb6831ab669291e3c224d7711

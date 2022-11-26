@@ -1,0 +1,26 @@
+apiVersion: flagger.app/v1beta1
+kind: Canary
+metadata:
+  annotations:
+  labels:
+    app: mbs
+    service: mbs
+  name: ats1-mbs
+  namespace: mw-ats1
+spec:
+  autoscalerRef:
+    apiVersion: autoscaling/v2beta2
+    kind: HorizontalPodAutoscaler
+    name: ats1-mbs
+  progressDeadlineSeconds: 600
+  revertOnDeletion: false
+  service:
+    delegation: true
+    name: ats1-mbs
+    port: 80
+    portDiscovery: true
+    targetPort: app
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ats1-mbs
