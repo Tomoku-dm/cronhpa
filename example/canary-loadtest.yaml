@@ -1,0 +1,75 @@
+apiVersion: flagger.app/v1beta1
+kind: Canary
+metadata:
+  name: sa1-mbs
+  namespace: mw-sa1
+spec:
+    webhooks:
+    - metadata:
+        hpa: sa1-mbs
+        max: "100"
+        min: "40"    20 -> 30 -> 40
+        namespace: mw-sa1
+      name: hpa-patch
+      timeout: 1m
+      type: confirm-rollout
+      url: http://flagger-loadtester.loadtester/confirm-rollout/updatehpa
+    - metadata:
+        hpa: sa1-mbs-primary
+        max: "100"
+        min: "40"      80 -> 70 -> 60 -> 50
+        namespace: mw-sa1
+      name: hpa-patch
+      timeout: 1m
+      type: confirm-rollout
+      url: http://flagger-loadtester.loadtester/confirm-rollout/updatehpa
+    - metadata:
+        cmd: hey -z 3m -q 2 -c 1 http://sa1-mbs-canary.mw-sa1.svc:80/wbxmbs2/meetingservice/health/readiness?redis=yes
+      name: sa1-mbs-load-test
+      timeout: 1m
+      type: rollout
+      url: http://flagger-loadtester.loadtester
+    - metadata:
+        appVersion: 43.1.0-17300
+        chartVersion: 43.1.0-11
+        cluster: sa1
+        roomId: Y2lzY29zcGFyazovL3VzL1JPT00vYjQ1NTU5NTAtMjk5ZC0xMWVkLTk4NmMtMjNmYjUyNzNkMWFi
+        service: sa1-mbs
+      name: sa1-mbs-webex-event
+      type: event
+      url: http://flagger-loadtester.loadtester/event/webex
+    - metadata:
+        hpa: sa1-mbs-primary
+        max: "100"
+        min: "80"
+        namespace: mw-sa1
+      name: hpa-patch
+      timeout: 1m
+      type: post-rollout
+      url: http://flagger-loadtester.loadtester/confirm-rollout/updatehpa
+    - metadata:
+        hpa: sa1-mbs
+        max: "100"
+        min: "80"
+        namespace: mw-sa1
+      name: hpa-patch
+      timeout: 1m
+      type: post-rollout
+      url: http://flagger-loadtester.loadtester/confirm-rollout/updatehpa
+  autoscalerRef:
+    apiVersion: autoscaling/v2beta2
+    kind: HorizontalPodAutoscaler
+    name: sa1-mbs
+  progressDeadlineSeconds: 600
+  revertOnDeletion: true
+  service:
+    delegation: true
+    name: sa1-mbs
+    port: 80
+    portDiscovery: true
+    targetPort: app
+  skipAnalysis: false
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: sa1-mbs

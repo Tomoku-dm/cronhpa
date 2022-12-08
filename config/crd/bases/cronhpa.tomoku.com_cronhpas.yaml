@@ -17,7 +17,21 @@ spec:
     singular: cronhpa
   scope: Namespaced
   versions:
-  - name: v1
+  - additionalPrinterColumns:
+    - description: MinReplicas is the lower limit for the number of replicas to which
+        the autoscaler can scale down
+      jsonPath: .spec.template.spec.minReplicas
+      name: MINPODS
+      type: string
+    - description: MaxReplicas is the upper limit for the number of replicas to which
+        the autoscaler can scale up.
+      jsonPath: .spec.template.spec.minReplicas
+      name: MAXPODS
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1
     schema:
       openAPIV3Schema:
         description: CronHPA is the Schema for the cronhpas API

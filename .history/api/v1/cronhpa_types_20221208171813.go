@@ -73,8 +73,7 @@ type CronHPAStatus struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:shortName=cronhpa
 // +kubebuilder:printcolumn:name="MINPODS",type="string",JSONPath=".spec.template.spec.minReplicas",description="MinReplicas is the lower limit for the number of replicas to which the autoscaler can scale down"
-// +kubebuilder:printcolumn:name="MAXPODS",type="string",JSONPath=".spec.template.spec.minReplicas",description="MaxReplicas is the upper limit for the number of replicas to which the autoscaler can scale up."
-// +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
+// +kubebuilder:printcolumn:name="MINPODS",type="string",JSONPath=".spec.template.spec.minReplicas",description="MinReplicas is the lower limit for the number of replicas to which the autoscaler can scale down"
 
 // CronHPA is the Schema for the cronhpas API
 type CronHPA struct {

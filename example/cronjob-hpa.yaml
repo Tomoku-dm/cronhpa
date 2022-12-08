@@ -1,16 +1,3 @@
-{{- if .Values.hpa.cronjob.enabled -}}
-{{- $monringHourUTC := sub .Values.hpa.cronjob.morning .Values.hpa.cronjob.tzoffset -}}
-{{- $nightHourUTC := sub .Values.hpa.cronjob.night .Values.hpa.cronjob.tzoffset -}}
-{{- if lt $monringHourUTC 0 }}
-  {{ $monringHourUTC = (add $monringHourUTC 24) }}
-{{- else if gt $monringHourUTC 24 }}
-  {{ $monringHourUTC = (sub $monringHourUTC 24) }}
-{{- end }}
-{{- if lt $nightHourUTC 0 }}
-  {{ $nightHourUTC = (add $nightHourUTC 24) }}
-{{- else if gt $nightHourUTC 24 }}
-  {{ $nightHourUTC = (sub $nightHourUTC 24) }}
-{{- end }}
 apiVersion: batch/v1beta1
 kind: CronJob
 metadata:
