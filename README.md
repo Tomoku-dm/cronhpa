@@ -29,13 +29,13 @@ spec:
             averageUtilization: 60
   cron:
   - name: "daytime"
-    schdedul: "0 7 0 0 1-5"
+    schedule: "0 7 0 0 1-5"
     timezone: "Asia/China"
     minReplicas : 10
     maxReplicas : 20
   - name: "nighttime"
     timezone: "Asia/China"
-    "schdedul: "0 19 0 0 1-5"
+    schedule: "0 19 0 0 1-5"
     minReplicas : 5
     maxReplicas : 20
 ```

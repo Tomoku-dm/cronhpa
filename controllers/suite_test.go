@@ -31,7 +31,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	cronhpav1 "cronhpa/api/v1"
+	cronhpav1 "github.com/Tomoku-dm/cronhpa/api/v1"
 	//+kubebuilder:scaffold:imports
 )
 

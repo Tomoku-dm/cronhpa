@@ -17,8 +17,6 @@ limitations under the License.
 package v1
 
 import (
-	"fmt"
-
 	autoscalingv2beta2 "k8s.io/api/autoscaling/v2beta2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -46,34 +44,55 @@ type HPATemplate struct {
 	Spec     autoscalingv2beta2.HorizontalPodAutoscalerSpec `json:"spec"`
 }
 
-type Cron struct {
-	Name        string `json:"name"`
-	Schedule    string `json:"schedule"`
-	Timezone    string `json:"timezone"`
+type HPAPatch struct {
+	// minReplicas is the lower limit for the number of replicas to which the autoscaler
+	// can scale down.  It defaults to 1 pod.  minReplicas is allowed to be 0 if the
+	// alpha feature gate HPAScaleToZero is enabled and at least one Object or External
+	// metric is configured.  Scaling is active as long as at least one metric value is
+	// available.
+	// +optional
 	MinReplicas *int32 `json:"minReplicas,omitempty"`
+	// maxReplicas is the upper limit for the number of replicas to which the autoscaler can scale up.
+	// It cannot be less that minReplicas.
+	// +optional
 	MaxReplicas *int32 `json:"maxReplicas,omitempty"`
+	// metrics contains the specifications for which to use to calculate the
+	// desired replica count (the maximum replica count across all metrics will
+	// be used).  The desired replica count is calculated multiplying the
+	// ratio between the target value and the current value by the current
+	// number of pods.  Ergo, metrics used must decrease as the pod count is
+	// increased, and vice-versa.  See the individual metric source types for
+	// more information about how each type of metric must respond.
+	// +optional
+	Metrics []autoscalingv2beta2.MetricSpec `json:"metrics,omitempty"`
+}
+
+type CronPatche struct {
+	Name     string    `json:"name"`
+	Schedule string    `json:"schedule"`
+	Timezone string    `json:"timezone"`
+	Patch    *HPAPatch `json:"patch,omitempty"`
 }
 
 // CronHPASpec defines the desired state of CronHPA
 type CronHPASpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	Template HPATemplate `json:"template"`
-	Cron     []Cron      `json:"cron"`
+	Template    HPATemplate  `json:"template"`
+	CronPatches []CronPatche `json:"cronPatches"`
 }
 
 // CronHPAStatus defines the observed state of CronHPA
 type CronHPAStatus struct {
 	// LastCronTimestamp is the time of last cron job.
 	LastCronTimestamp *metav1.Time `json:"lastCronTimestamp,omitempty"`
+	// LastCronPatchName is the last patch name applied to the HPA.
+	LastCronPatchName string `json:"lastCronPatchName,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:shortName=cronhpa
-// +kubebuilder:printcolumn:name="MINPODS",type="string",JSONPath=".spec.template.spec.minReplicas",description="MinReplicas is the lower limit for the number of replicas to which the autoscaler can scale down"
-// +kubebuilder:printcolumn:name="MAXPODS",type="string",JSONPath=".spec.template.spec.minReplicas",description="MaxReplicas is the upper limit for the number of replicas to which the autoscaler can scale up."
+// +kubebuilder:printcolumn:name="REFERENCE",type="string",JSONPath=".spec.template.spec.scaleTargetRef.name",description="scaleTargetRef name"
+// +kubebuilder:printcolumn:name="LastCronPatchName",type="string",JSONPath=".status.lastCronPatchName",description="LastCronPatchName."
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 
 // CronHPA is the Schema for the cronhpas API
@@ -98,7 +117,5 @@ func init() {
 	SchemeBuilder.Register(&CronHPA{}, &CronHPAList{})
 }
 
-func (h *CronHPA) String() string {
-	fmt.Printf("%+v", h.Spec.Cron)
-	return ("true")
-}
+// name="MINPODS",type="string",JSONPath=".spec.template.spec.minReplicas",description="MinReplicas is the lower limit for the number of replicas to which the autoscaler can scale down"
+// name="MAXPODS",type="string",JSONPath=".spec.template.spec.maxReplicas",description="MaxReplicas is the upper limit for the number of replicas to which the autoscaler can scale up."

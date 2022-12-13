@@ -1,14 +1,14 @@
 apiVersion: cronhpa.tomoku.com/v1
 kind: CronHPA
 metadata:
+  annotations:
+    cronhpa.tomoku.github.com/skip: "false"
   name: cronhpa-test1
   namespace: default
 spec:
   template:
     spec:
       behavior:
-        scaleDown:
-          stabilizationWindowSeconds: 1800
       scaleTargetRef:
         apiVersion: apps/v1
         kind: Deployment
@@ -22,9 +22,22 @@ spec:
           target:
             type: Utilization
             averageUtilization: 60
-  cron:
-  - name: "daytime"
-    schedule: "0 7 0 0 1-5"
-    timezone: "Asia/China"
-    minReplicas: 2
-    maxReplicas: 3
+  cronPatches:
+  - name: daytime
+    schedule: "30 * * * *"
+    timezone: "Asia/Tokyo"
+    patch:
+      minReplicas: 1
+  - name: "nighttime"
+    schedule: "10 * * * *"
+    timezone: "Asia/Tokyo"
+    patch:
+      minReplicas: 3
+      maxReplicas: 3
+      metrics:
+      - type: Resource
+        resource:
+          name: cpu
+          target:
+            type: Utilization
+            averageUtilization: 70

@@ -33,8 +33,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	cronhpav1 "cronhpa/api/v1"
-	"cronhpa/controllers"
+	cronhpav1 "github.com/Tomoku-dm/cronhpa/api/v1"
+	"github.com/Tomoku-dm/cronhpa/controllers"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -92,7 +92,15 @@ func main() {
 		os.Exit(1)
 	}
 
+	cron := controllers.NewCron()
+	cron.Start()
+
+	defer func() {
+		cron.Stop()
+	}()
+
 	if err = (&controllers.CronHPAReconciler{
+		Cron:     cron,
 		Client:   mgr.GetClient(),
 		Recorder: mgr.GetEventRecorderFor("cron-hpa-controller"),
 	}).SetupWithManager(mgr); err != nil {

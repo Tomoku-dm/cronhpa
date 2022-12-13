@@ -18,8 +18,9 @@ package controllers
 
 import (
 	"context"
-	cronhpav1 "cronhpa/api/v1"
 	"time"
+
+	cronhpav1 "github.com/Tomoku-dm/cronhpa/api/v1"
 
 	autoscalingv2beta2 "k8s.io/api/autoscaling/v2beta2"
 
@@ -27,14 +28,19 @@ import (
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 // CronHPAReconciler reconciles a CronHPA object
 type CronHPAReconciler struct {
 	client.Client
 	Recorder record.EventRecorder
+	Cron     *Cron
 }
+
+const finalizerName = "cronhpa.tomoku.github.com/finalizer"
 
 //+kubebuilder:rbac:groups=cronhpa.tomoku.com,resources=cronhpas,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=cronhpa.tomoku.com,resources=cronhpas/status,verbs=get;update;patch
@@ -56,7 +62,7 @@ func (r *CronHPAReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	now := time.Now()
 
-	// Fetch the CronHorizontalPodAutoscaler instance.
+	// Fetch the CronHPA instance.
 	logger.Info("Fetch CronHPA")
 	cronhpa := &CronHPA{}
 	err := r.Get(ctx, req.NamespacedName, cronhpa.ToCompatible())
@@ -67,9 +73,52 @@ func (r *CronHPAReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
+	// Handle deleted resources.
+	if !cronhpa.ObjectMeta.DeletionTimestamp.IsZero() {
+		if controllerutil.ContainsFinalizer(cronhpa.ToCompatible(), finalizerName) {
+			logger.Info("Clear schedules")
+			if err := cronhpa.ClearSchedules(ctx, r); err != nil {
+				logger.Error(err, "Failed to clear schedules")
+			}
+
+			controllerutil.RemoveFinalizer(cronhpa.ToCompatible(), finalizerName)
+			if err := r.Update(ctx, cronhpa.ToCompatible()); err != nil {
+				return reconcile.Result{}, err
+			}
+		}
+		return reconcile.Result{}, nil
+	}
+
+	// Set finalizer.
+	if !controllerutil.ContainsFinalizer(cronhpa.ToCompatible(), finalizerName) {
+		logger.Info("Set finalizer")
+		cronhpa.ObjectMeta.Finalizers = append(cronhpa.ObjectMeta.Finalizers, finalizerName)
+		if err := r.Update(ctx, cronhpa.ToCompatible()); err != nil {
+			return reconcile.Result{}, err
+		}
+	}
+
 	// Fetch the corresponded HPA instance.
+	logger.Info("Fetch HPA")
+	hpa := &autoscalingv2beta2.HorizontalPodAutoscaler{}
+	if err := r.Get(ctx, req.NamespacedName, hpa); err != nil {
+		if !errors.IsNotFound(err) {
+			return ctrl.Result{}, err
+		}
+	}
+
 	logger.Info("Create or update HPA")
-	if err := cronhpa.CreateHPA(ctx, now, r); err != nil {
+	patchName, err := cronhpa.GetCurrentPatchName(ctx, now)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := cronhpa.CreateOrPatchHPA(ctx, patchName, now, r); err != nil {
+		return ctrl.Result{}, err
+	}
+
+	// Update the schedules.
+	logger.Info("Update schedules")
+	if err := cronhpa.UpdateSchedules(ctx, r); err != nil {
 		return ctrl.Result{}, err
 	}
 

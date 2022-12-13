@@ -18,11 +18,14 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	"reflect"
+	"strings"
 	"time"
 
-	cronhpav1 "cronhpa/api/v1"
+	cronhpav1 "github.com/Tomoku-dm/cronhpa/api/v1"
 
+	"github.com/robfig/cron/v3"
 	autoscalingv2beta2 "k8s.io/api/autoscaling/v2beta2"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -47,7 +50,128 @@ const (
 	CronHPAEventNone        CronHPAEvent = ""
 )
 
-func (cronhpa *CronHPA) NewHPA() (*autoscalingv2beta2.HorizontalPodAutoscaler, error) {
+const MAX_SCHEDULE_TRY = 1000000
+
+func (cronhpa *CronHPA) ClearSchedules(ctx context.Context, reconciler *CronHPAReconciler) error {
+	reconciler.Cron.RemoveResourceEntry(cronhpa.ToNamespacedName())
+	msg := "Unscheduled"
+	reconciler.Recorder.Event((*cronhpav1.CronHPA)(cronhpa), corev1.EventTypeNormal, CronHPAEventUnscheduled, msg)
+	return nil
+}
+
+func (cronhpa *CronHPA) UpdateSchedules(ctx context.Context, reconciler *CronHPAReconciler) error {
+	logger := log.FromContext(ctx)
+
+	logger.Info("Update schedules")
+	reconciler.Cron.RemoveResourceEntry(cronhpa.ToNamespacedName())
+	entryNames := make([]string, 0)
+	for _, scheduledPatch := range cronhpa.Spec.CronPatches {
+		entryNames = append(entryNames, scheduledPatch.Name)
+		tzs := scheduledPatch.Schedule
+		if scheduledPatch.Timezone != "" {
+			tzs = "CRON_TZ=" + scheduledPatch.Timezone + " " + scheduledPatch.Schedule
+		}
+		err := reconciler.Cron.Add(cronhpa.ToNamespacedName(), scheduledPatch.Name, tzs, &CronContext{
+			reconciler: reconciler,
+			cronhpa:    cronhpa,
+			patchName:  scheduledPatch.Name,
+		})
+		if err != nil {
+			return err
+		}
+		logger.Info(fmt.Sprintf("Scheduled %s", scheduledPatch.Name))
+	}
+	msg := fmt.Sprintf("Scheduled: %s", strings.Join(entryNames, ","))
+	reconciler.Recorder.Event((*cronhpav1.CronHPA)(cronhpa), corev1.EventTypeNormal, CronHPAEventScheduled, msg)
+	return nil
+}
+
+func (cronhpa *CronHPA) ApplyHPAPatch(patchName string, hpa *autoscalingv2beta2.HorizontalPodAutoscaler) error {
+	var scheduledPatch *cronhpav1.CronPatche
+	for _, sp := range cronhpa.Spec.CronPatches {
+		if sp.Name == patchName {
+			scheduledPatch = &sp
+			break
+		}
+	}
+	if scheduledPatch == nil {
+		return fmt.Errorf("No schedule patch named %s", patchName)
+	}
+
+	// Apply patches on the template.
+	if scheduledPatch.Patch != nil {
+		if scheduledPatch.Patch.MinReplicas != nil {
+			*hpa.Spec.MinReplicas = *scheduledPatch.Patch.MinReplicas
+		}
+		if scheduledPatch.Patch.MaxReplicas != nil {
+			hpa.Spec.MaxReplicas = *scheduledPatch.Patch.MaxReplicas
+		}
+		if scheduledPatch.Patch.Metrics != nil {
+			hpa.Spec.Metrics = make([]autoscalingv2beta2.MetricSpec, len(scheduledPatch.Patch.Metrics))
+			for i, metric := range scheduledPatch.Patch.Metrics {
+				hpa.Spec.Metrics[i] = metric
+			}
+		}
+	}
+	return nil
+}
+
+func (cronhpa *CronHPA) GetCurrentPatchName(ctx context.Context, currentTime time.Time) (string, error) {
+	logger := log.FromContext(ctx)
+
+	logger.Info("Get current patch")
+	currentPatchName := ""
+	for _, scheduledPatch := range cronhpa.Spec.CronPatches {
+		if scheduledPatch.Name == cronhpa.Status.LastCronPatchName {
+			currentPatchName = scheduledPatch.Name
+			break
+		}
+	}
+	if cronhpa.Status.LastCronPatchName != "" && currentPatchName == "" {
+		logger.Info(fmt.Sprintf("Lost scheduled patch %s", cronhpa.Status.LastCronPatchName))
+	}
+	lastCronTimestamp := cronhpa.Status.LastCronTimestamp
+	if lastCronTimestamp != nil {
+		var standardParser = cron.NewParser(
+			cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor,
+		)
+
+		mostLatestTime := lastCronTimestamp.Time
+		for _, scheduledPatch := range cronhpa.Spec.CronPatches {
+			tzs := scheduledPatch.Schedule
+			if scheduledPatch.Timezone != "" {
+				tzs = "CRON_TZ=" + scheduledPatch.Timezone + " " + scheduledPatch.Schedule
+			}
+			schedule, err := standardParser.Parse(tzs)
+			if err != nil {
+				return "", err
+			}
+			nextTime := lastCronTimestamp.Time
+			latestTime := lastCronTimestamp.Time
+			for i := 0; i <= MAX_SCHEDULE_TRY; i++ {
+				nextTime = schedule.Next(nextTime)
+				if nextTime.After(currentTime) || nextTime.IsZero() {
+					break
+				}
+				latestTime = nextTime
+				if i == MAX_SCHEDULE_TRY {
+					return "", fmt.Errorf("Cannot find the next schedule of patch %s", scheduledPatch.Name)
+				}
+			}
+			if latestTime.After(mostLatestTime) && (latestTime.Before(currentTime) || latestTime.Equal(currentTime)) {
+				currentPatchName = scheduledPatch.Name
+				mostLatestTime = latestTime
+			}
+		}
+
+	}
+	if cronhpa.Status.LastCronPatchName != currentPatchName {
+		logger.Info(fmt.Sprintf("Current patch changed from %s to %s", cronhpa.Status.LastCronPatchName, currentPatchName))
+	}
+	return currentPatchName, nil
+}
+
+func (cronhpa *CronHPA) NewHPA(patchName string) (*autoscalingv2beta2.HorizontalPodAutoscaler, error) {
 	template := cronhpa.Spec.Template.DeepCopy()
 	hpa := &autoscalingv2beta2.HorizontalPodAutoscaler{
 		TypeMeta: metav1.TypeMeta{
@@ -64,15 +188,20 @@ func (cronhpa *CronHPA) NewHPA() (*autoscalingv2beta2.HorizontalPodAutoscaler, e
 		hpa.ObjectMeta.Labels = template.Metadata.Labels
 		hpa.ObjectMeta.Annotations = template.Metadata.Annotations
 	}
+	if patchName != "" {
+		if err := cronhpa.ApplyHPAPatch(patchName, hpa); err != nil {
+			return nil, err
+		}
+	}
 	return hpa, nil
 }
 
-func (cronhpa *CronHPA) CreateHPA(ctx context.Context, currentTime time.Time, reconciler *CronHPAReconciler) error {
+func (cronhpa *CronHPA) CreateOrPatchHPA(ctx context.Context, patchName string, currentTime time.Time, reconciler *CronHPAReconciler) error {
 	logger := log.FromContext(ctx)
 
 	logger.Info("Create or update HPA")
 
-	newhpa, err := cronhpa.NewHPA()
+	newhpa, err := cronhpa.NewHPA(patchName)
 	if err != nil {
 		return err
 	}
@@ -116,6 +245,13 @@ func (cronhpa *CronHPA) CreateHPA(ctx context.Context, currentTime time.Time, re
 	if event != "" {
 		cronhpa.Status.LastCronTimestamp = &metav1.Time{
 			Time: currentTime,
+		}
+		cronhpa.Status.LastCronPatchName = patchName
+		if err := reconciler.Status().Update(ctx, cronhpa.ToCompatible()); err != nil {
+			return err
+		}
+		if patchName != "" {
+			msg = fmt.Sprintf("%s with %s", msg, patchName)
 		}
 		reconciler.Recorder.Event(cronhpa.ToCompatible(), corev1.EventTypeNormal, event, msg)
 	}
